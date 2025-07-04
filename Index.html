@@ -1,29 +1,28 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
   <title>Claim Server Code</title>
   <style>
-    body { font-family: Arial, sans-serif; text-align: center; padding: 40px; }
-    #codeBox { margin-top: 20px; font-size: 20px; color: green; }
-    #claimStatus { margin-top: 10px; color: red; }
+    body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+    #codeBox { font-size: 20px; color: green; margin-top: 20px; }
+    #claimStatus { color: red; margin-top: 10px; }
     button { padding: 10px 20px; font-size: 16px; }
   </style>
 </head>
 <body>
 
   <h2>🎮 Claim Your Server Code</h2>
-  <button onclick="claimCode()">Claim Server Code</button>
+  <button id="claimBtn">Claim Server Code</button>
   <div id="codeBox"></div>
   <div id="claimStatus"></div>
 
-  <!-- Firebase SDKs -->
+  <!-- Firebase v9+ SDKs via ES Modules -->
   <script type="module">
-    // Import Firebase SDK modules
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.11/firebase-app.js";
     import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/9.6.11/firebase-database.js";
-    import { getAnalytics } from "https://www.gstatic.com/firebasejs/9.6.11/firebase-analytics.js";
 
-    // Your Firebase config
+    // ✅ Your Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyBDJgEb2uCYOTfACJRr4ni-TPLdocP4pxk",
       authDomain: "data-5f291.firebaseapp.com",
@@ -35,51 +34,58 @@
       measurementId: "G-2X20MH4M4B"
     };
 
-    // Initialize Firebase
+    // ✅ Initialize Firebase
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
-    const analytics = getAnalytics(app);
 
-    const PASSWORD = "admin123"; // 🔒 Your claim password
+    const PASSWORD = "admin123"; // 🔒 Change this password if needed
+    const CODE = "SMP-XY129-A1B2"; // 🔑 Server code you want to show once
 
-    async function claimCode() {
-      const userPassword = prompt("Enter the password:");
-      if (userPassword !== PASSWORD) {
+    const claimBtn = document.getElementById("claimBtn");
+    const codeBox = document.getElementById("codeBox");
+    const claimStatus = document.getElementById("claimStatus");
+
+    claimBtn.addEventListener("click", async () => {
+      const entered = prompt("Enter the password:");
+      if (entered !== PASSWORD) {
         alert("❌ Incorrect password.");
         return;
       }
 
-      const serverCodeRef = ref(db, "serverClaim/code1");
+      const codeRef = ref(db, "claimed/code1");
 
-      const snapshot = await get(serverCodeRef);
-      if (snapshot.exists()) {
-        const data = snapshot.val();
-        if (data.claimed) {
-          document.getElementById("codeBox").innerText = "";
-          document.getElementById("claimStatus").innerText = "⚠️ Already claimed by someone.";
+      try {
+        const snapshot = await get(codeRef);
+
+        if (snapshot.exists()) {
+          const data = snapshot.val();
+          if (data.claimed) {
+            codeBox.innerText = "";
+            claimStatus.innerText = "⚠️ Already claimed by someone.";
+          } else {
+            await set(codeRef, {
+              claimed: true,
+              code: CODE,
+              timestamp: Date.now()
+            });
+            codeBox.innerText = "✅ Your Server Code: " + CODE;
+            claimStatus.innerText = "";
+          }
         } else {
-          const myCode = "SMP-XY129-A1B2"; // 🔑 Your server code
-          await set(serverCodeRef, {
+          // No data exists yet — first claim
+          await set(codeRef, {
             claimed: true,
-            code: myCode,
+            code: CODE,
             timestamp: Date.now()
           });
-
-          document.getElementById("codeBox").innerText = "✅ Your Server Code: " + myCode;
-          document.getElementById("claimStatus").innerText = "";
+          codeBox.innerText = "✅ Your Server Code: " + CODE;
+          claimStatus.innerText = "";
         }
-      } else {
-        // First-time setup
-        const myCode = "SMP-XY129-A1B2";
-        await set(serverCodeRef, {
-          claimed: true,
-          code: myCode,
-          timestamp: Date.now()
-        });
-        document.getElementById("codeBox").innerText = "✅ Your Server Code: " + myCode;
-        document.getElementById("claimStatus").innerText = "";
+      } catch (error) {
+        alert("🔥 Error accessing database: " + error.message);
       }
-    }
+    });
   </script>
+
 </body>
 </html>
