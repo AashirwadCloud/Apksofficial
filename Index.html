@@ -2,26 +2,126 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Claim Server Code</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>App Store</title>
   <style>
-    body { font-family: Arial, sans-serif; text-align: center; padding: 40px; }
-    button { padding: 10px 20px; font-size: 16px; }
-    #codeBox { font-size: 20px; color: green; margin-top: 20px; }
-    #claimStatus { font-size: 16px; color: red; margin-top: 10px; }
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to right, #141e30, #243b55);
+      color: white;
+    }
+    header {
+      text-align: center;
+      padding: 1rem;
+      animation: fadeIn 1.2s ease-out;
+    }
+    .search-box {
+      text-align: center;
+      margin: 20px;
+    }
+    input[type="text"], input[type="url"] {
+      padding: 10px;
+      width: 70%;
+      max-width: 400px;
+      border-radius: 5px;
+      border: none;
+    }
+    button {
+      padding: 10px 15px;
+      border: none;
+      background: #00c6ff;
+      color: white;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-left: 10px;
+    }
+    .app-list {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      padding: 10px;
+    }
+    .app-card {
+      background: rgba(255, 255, 255, 0.05);
+      margin: 1rem;
+      padding: 1rem;
+      border-radius: 10px;
+      width: 220px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+      transition: transform 0.3s;
+      text-align: center;
+    }
+    .app-card:hover {
+      transform: scale(1.05);
+    }
+    .app-card img {
+      width: 100px;
+      height: 100px;
+      border-radius: 10px;
+      object-fit: cover;
+    }
+    #errorMsg {
+      text-align: center;
+      display: none;
+      margin-top: 30px;
+      font-size: 20px;
+      color: red;
+    }
+    #admin-panel {
+      text-align: center;
+      margin-top: 40px;
+      padding: 20px;
+      border-top: 1px solid rgba(255,255,255,0.2);
+    }
+    #admin-panel input {
+      display: block;
+      margin: 10px auto;
+      padding: 10px;
+      width: 80%;
+      max-width: 400px;
+      border-radius: 5px;
+      border: none;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @media (max-width: 600px) {
+      .app-card { width: 90%; }
+      input[type="text"] { width: 90%; }
+    }
   </style>
 </head>
 <body>
 
-  <h2>🎮 Claim a Server Code</h2>
-  <button id="claimBtn">Claim Code</button>
-  <div id="codeBox"></div>
-  <div id="claimStatus"></div>
+  <header>
+    <h1>🌟 My App Store</h1>
+    <p>Search and Download Your Favorite Apps</p>
+  </header>
 
+  <div class="search-box">
+    <input type="text" id="searchInput" placeholder="Search apps by name..." />
+    <button onclick="searchApp()">🔍 Search</button>
+  </div>
+
+  <div id="results" class="app-list"></div>
+  <div id="errorMsg">❌ App Not Found</div>
+
+  <div id="admin-panel">
+    <h2>📤 Upload App (For All)</h2>
+    <input id="appName" placeholder="App Name" />
+    <input id="appIcon" placeholder="Icon URL" type="url" />
+    <input id="appDesc" placeholder="App Description" />
+    <input id="appLink" placeholder="Download Link" type="url" />
+    <button onclick="uploadApp()">Upload App</button>
+  </div>
+
+  <!-- Firebase Scripts -->
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.11/firebase-app.js";
-    import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/9.6.11/firebase-database.js";
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, child, get, push, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-    // ✅ Firebase Config
     const firebaseConfig = {
       apiKey: "AIzaSyBDJgEb2uCYOTfACJRr4ni-TPLdocP4pxk",
       authDomain: "data-5f291.firebaseapp.com",
@@ -35,79 +135,66 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
-    const codesRef = ref(db, 'serverCodes');
-    const PASSWORD = "admin123";
 
-    const initialCodes = [
-      "adv1",
-      "adv2",
-      "SMP-THREE-6123",
-      "SMP-FOUR-4455",
-      "SMP-FIVE-1122"
-    ];
+    async function searchApp() {
+      const input = document.getElementById("searchInput").value.toLowerCase();
+      const resultsDiv = document.getElementById("results");
+      const errorMsg = document.getElementById("errorMsg");
 
-    // Auto-add server codes on first load
-    async function autoAddCodes() {
-      const snapshot = await get(codesRef);
-      if (!snapshot.exists()) {
-        const updates = {};
-        initialCodes.forEach((code, index) => {
-          updates[`code${index + 1}`] = {
-            code: code,
-            claimed: false
-          };
+      resultsDiv.innerHTML = "";
+      errorMsg.style.display = "none";
+
+      try {
+        const snapshot = await get(child(ref(db), "apps"));
+        let found = false;
+
+        snapshot.forEach((childSnap) => {
+          const app = childSnap.val();
+          if (app.name.toLowerCase().includes(input)) {
+            found = true;
+            const card = document.createElement("div");
+            card.className = "app-card";
+            card.innerHTML = `
+              <img src="${app.icon}" alt="${app.name}" />
+              <h3>${app.name}</h3>
+              <p>${app.description}</p>
+              <a href="${app.url}" target="_blank">📥 Download</a>
+            `;
+            resultsDiv.appendChild(card);
+          }
         });
-        await set(codesRef, updates);
-        console.log("✅ Server codes added");
-      } else {
-        console.log("ℹ️ Server codes already exist");
+
+        if (!found) errorMsg.style.display = "block";
+      } catch (err) {
+        console.error("Search error:", err);
       }
     }
 
-    // Run once on load
-    autoAddCodes();
+    async function uploadApp() {
+      const name = document.getElementById("appName").value.trim();
+      const icon = document.getElementById("appIcon").value.trim();
+      const desc = document.getElementById("appDesc").value.trim();
+      const url = document.getElementById("appLink").value.trim();
 
-    // Claim server code
-    async function claimServerCode() {
-      const inputPass = prompt("Enter the password:");
-      if (inputPass !== PASSWORD) {
-        alert("❌ Incorrect password!");
+      if (!name || !icon || !desc || !url) {
+        alert("❗ Please fill out all fields.");
         return;
       }
 
-      const snapshot = await get(codesRef);
-      if (snapshot.exists()) {
-        const codes = snapshot.val();
-        let found = false;
+      const newApp = { name, icon, description: desc, url };
 
-        for (const [key, value] of Object.entries(codes)) {
-          if (!value.claimed) {
-            await set(ref(db, `serverCodes/${key}`), {
-              code: value.code,
-              claimed: true,
-              timestamp: Date.now()
-            });
-
-            document.getElementById("codeBox").innerText = "✅ Your Server Code: " + value.code;
-            document.getElementById("claimStatus").innerText = "";
-            found = true;
-            break;
-          }
-        }
-
-        if (!found) {
-          document.getElementById("codeBox").innerText = "";
-          document.getElementById("claimStatus").innerText = "❌ All codes have been claimed.";
-        }
-      } else {
-        document.getElementById("codeBox").innerText = "";
-        document.getElementById("claimStatus").innerText = "⚠️ No codes available.";
+      try {
+        await set(push(ref(db, "apps")), newApp);
+        alert("✅ App uploaded successfully!");
+        document.getElementById("appName").value = "";
+        document.getElementById("appIcon").value = "";
+        document.getElementById("appDesc").value = "";
+        document.getElementById("appLink").value = "";
+      } catch (err) {
+        console.error("Upload error:", err);
+        alert("❌ Upload failed.");
       }
     }
-
-    // ✅ Attach button click handler after load
-    document.getElementById("claimBtn").addEventListener("click", claimServerCode);
   </script>
-
 </body>
 </html>
